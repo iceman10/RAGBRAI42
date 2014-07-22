@@ -21,7 +21,10 @@ float finalDistKM =0;
 PFont titleFont; 
 PFont bodyFont; 
 float dayMClimb = 0; 
-
+float gradeMin = MAX_FLOAT;
+float gradeMax = MIN_FLOAT;
+float dayGradeMin = MAX_FLOAT;
+float dayGradeMax = MIN_FLOAT;
 
 
 void setup(){
@@ -44,10 +47,18 @@ void setup(){
       if (row == rowCount-1) {
         totalDistKM = dataTable.getFloat(row,6);
       }
+    float value2 = dataTable.getFloat(row,5);
+      if (value2 > gradeMax){
+        gradeMax = value2;
+      }
+      if (value2 < gradeMin){
+        gradeMin = value2;
+      }
   }
   
   totalDistMI = totalDistKM*.621371;
-  // print(totalDistMI);
+  //print(gradeMax);
+  //print(gradeMin);
 }
 
 void draw(){
@@ -72,7 +83,9 @@ void draw(){
   
   drawDay(day);
   drawXLabels();
+  drawYLabels();
   drawAxisLines();
+  drawYText();
        
 }
 
@@ -159,78 +172,23 @@ void drawDay(int day){
 void keyPressed(){
   if (key == ' '){
     day = day+1; //Day 8 is the overview
-    startDistKM = 1000; 
-    finalDistKM =0;
-    dayMax= MIN_FLOAT; 
-    dayMin = MAX_FLOAT;
+    resetDailyStats();
     if (day == 9){
       day =1;
     }
-    //Loop that recalculates max and min elevation, and start/end dist each time spacebar is pressed. 
-    for (int row =0; row < rowCount; row++){
-      if (dataTable.getFloat(row,0) == day){
-      float value = dataTable.getFloat(row,3);
-      if (value > dayMax){
-        dayMax = value;
-        
-      }
-      if (value < dayMin){
-        dayMin = value;
-      }
-      float value2 = dataTable.getFloat(row,6);
-      if ( value2 < startDistKM){
-        startDistKM = value2;
-      } 
-      
-      if ( value2 > finalDistKM){
-        finalDistKM = value2;
-      }
-      dayDistKM = finalDistKM-startDistKM;
-      }
-    }
+    //Recalculate max and min elevation, and start/end dist each time spacebar is pressed. 
+    updateDailyStats();
   }
 }
 
 void mouseClicked(){
     day = day+1; //Day 8 is the overview
-    startDistKM = 1000; 
-    finalDistKM =0;
-    dayMax= MIN_FLOAT; 
-    dayMin = MAX_FLOAT;
-    dayMClimb = 0;
+    resetDailyStats();
     if (day == 9){
       day =1;
     }
-    //Loop that recalculates max and min elevation, and start/end dist each time spacebar is pressed. 
-    for (int row =0; row < rowCount; row++){
-      if (dataTable.getFloat(row,0) == day){
-      float value = dataTable.getFloat(row,3);
-      if (value > dayMax){
-        dayMax = value;
-        
-      }
-      if (value < dayMin){
-        dayMin = value;
-      }
-      float value2 = dataTable.getFloat(row,6);
-      if ( value2 < startDistKM){
-        startDistKM = value2;
-      } 
-      
-      if ( value2 > finalDistKM){
-        finalDistKM = value2;
-      }
-      dayDistKM = finalDistKM-startDistKM;
-      
-      //Calculate total climb
-      float value3 = dataTable.getFloat(row,3);
-      if (row < rowCount-1){
-        if (value3 < dataTable.getFloat(row+1,3)){
-          dayMClimb = dayMClimb +(dataTable.getFloat(row+1,3)-value3);
-        }
-      }
-    }
-  }
+    //Recalculate max and min elevation, and start/end dist each time the mouse is clicked. 
+    updateDailyStats();
 }
 
 void printDayStats(){
@@ -244,6 +202,8 @@ void printDayStats(){
     text("Distance: "+nf(kmToMi(dayDistKM),0,2)+" mi",75,75);
     text("Max height: "+ nf(metersToFt(dayMax),0,2)+" ft", 75,100);
     text("Total feet of climb: " + nf(metersToFt(dayMClimb),0,2)+" ft", 75, 125);
+    text("Max sustained grade: " + nf(dayGradeMax,0,2)+"%", 425, 75);
+    text("Min sustained grade: " + nf(dayGradeMin,0,2)+"%", 425, 100);
   }
 }
 
@@ -276,18 +236,20 @@ void drawXLabels(){
     int xCoord =0; 
     for ( int i =0; i < 6; i++){
       float x = map(xCoord,0,kmToMi(totalDistKM),padXL,width-padXR);
-      text(xCoord,x,height-25);
+      text(xCoord,x,height-40);
       xCoord = xCoord+interval;
-      line(xCoord,height-padYTop,x,height-padYTop);
+      //line(xCoord,height-padYTop,x,height-padYTop);
+      text("Distance in Miles", width/2, height-15);
     }
   } else {  
     int interval = round(kmToMi(dayDistKM)/5);//5 x axis labels 
     int xCoord =0;
     for ( int i =0; i < 6; i++){
       float x = map(xCoord,0,kmToMi(dayDistKM),padXL,width-padXR);
-      text(xCoord,x,height-25);
+      text(xCoord,x,height-40);
       xCoord = xCoord+interval;
-      line(xCoord,height-padYTop,x,height-padYTop);
+      //line(xCoord,height-padYTop,x,height-padYTop);
+      text("Distance in Miles", width/2, height-15);
     }
   }
 }
@@ -297,8 +259,100 @@ void drawAxisLines(){
   strokeWeight(2);
   line(padXL-5,height-padYBtm+5,padXL-5,padYTop);
   line(padXL-5,height-padYBtm+5,width-padXR+15,height-padYBtm+5);
-}    
+}  
 
+void drawYLabels() {
+  fill(0);
+  textFont(bodyFont);
+  textSize(18);
+  textAlign(CENTER,BASELINE);
   
+  //Use thin, gray lines to draw the grid. 
+  //stroke(255);
+  //strokeWeight(1);
+
+  if (day == 8){
+    int interval = round(metersToFt(eleMax-eleMin)/3);  //Gives 4 Y axis markers
+    int yCoord = (int)metersToFt(eleMin);
+    for ( int i =0; i < 4; i++){
+      float y = map(yCoord,metersToFt(eleMin),metersToFt(eleMax),height-padYBtm,padYTop);
+      text(yCoord,padXL-25,y+5);
+      yCoord = yCoord+interval;
+      
+    }
+  } else {  
+    int interval = round(metersToFt(dayMax-dayMin)/3); //Gives 4 Y axis markers 
+    int yCoord =(int) metersToFt(dayMin);
+    for ( int i =0; i < 4; i++){
+      float y = map(yCoord,metersToFt(dayMin),metersToFt(dayMax),height-padYBtm,padYTop);
+      text(yCoord,padXL-25,y+5);
+      yCoord = yCoord+interval;
+    }
+  }
+} 
+
+void resetDailyStats(){
+  //Reset daily values
+    startDistKM = 1000; 
+    finalDistKM =0;
+    dayMax= MIN_FLOAT; 
+    dayMin = MAX_FLOAT;
+    dayMClimb = 0;
+    dayGradeMin = MAX_FLOAT;
+    dayGradeMax = MIN_FLOAT;
+}
+
+void updateDailyStats(){
+  for (int row =0; row < rowCount; row++){
+      if (dataTable.getFloat(row,0) == day){
+      float value = dataTable.getFloat(row,3);
+      if (value > dayMax){
+        dayMax = value;
+        
+      }
+      if (value < dayMin){
+        dayMin = value;
+      }
+      float value2 = dataTable.getFloat(row,6);
+      if ( value2 < startDistKM){
+        startDistKM = value2;
+      } 
+      
+      if ( value2 > finalDistKM){
+        finalDistKM = value2;
+      }
+      dayDistKM = finalDistKM-startDistKM;
+      
+      //Calculate total climb
+      float value3 = dataTable.getFloat(row,3);
+      if (row < rowCount-1){
+        if (value3 < dataTable.getFloat(row+1,3)){
+          dayMClimb = dayMClimb +(dataTable.getFloat(row+1,3)-value3);
+        }
+      }
+      //Calculate daily max/min grade
+      float value4 = dataTable.getFloat(row,5);
+      if (value4 > dayGradeMax){
+        dayGradeMax = value4;
+      }
+      if (value4 < dayGradeMin){
+        dayGradeMin = value4;
+      }
+    }
+  }
+}
+
+void drawYText(){
+  fill(0);
+  textFont(bodyFont);   
+  textSize(18);  
+  translate(25,(height+padYTop-25)/2);  
+  rotate(3*PI/2);               
+  textAlign(CENTER);            
+  text("Elevatoni in Feet",0,0);
+  
+}
+
+
   
 
